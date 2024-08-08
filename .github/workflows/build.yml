@@ -1,0 +1,43 @@
+name: Build Workflow
+on:
+  workflow_dispatch:
+jobs:
+  build-push-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Authenticate with Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: "${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}"
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install kubectl
+        run: gcloud components install kubectl
+
+      - name: Check kubectl version
+        run: kubectl version --client
+
+      - name: Use gcloud CLI
+        run: gcloud info
+
+      - name: Docker auth
+        run: gcloud auth configure-docker asia-east1-docker.pkg.dev --quiet
+
+      - name: Set version
+        id: version
+        run: echo "::set-output name=VERSION::$(git rev-parse --short HEAD)"
+
+      - name: Build and push the docker image
+        env:
+          GOOGLE_PROJECT: ${{ secrets.GOOGLE_PROJECT }}
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          DOCKER_IMAGE="asia-east1-docker.pkg.dev/${GOOGLE_PROJECT}/nodejs-test/nodejs-web:${VERSION}"
+          gcloud auth configure-docker asia-east1-docker.pkg.dev
+          docker build -t $DOCKER_IMAGE .
+          docker push $DOCKER_IMAGE
